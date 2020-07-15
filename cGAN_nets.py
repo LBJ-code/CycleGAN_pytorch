@@ -114,10 +114,10 @@ class ResnetBlock(nn.Module):
 '''
 from matplotlib import pyplot as plt
 resnet_generator = ResnetGenerator(3, 3)
-input_img = torch.randn(1, 3, 352, 480)
+input_img = torch.randn(4, 3, 256, 256)
 fake_images = resnet_generator(input_img)
 
-img_transformed = fake_images[0].detach().numpy().reshape(352, 480, -1)
+img_transformed = fake_images[0].detach().numpy().reshape(256, 256, -1)
 plt.imshow(img_transformed)
 plt.show()
 '''
@@ -158,17 +158,21 @@ class NLayerDiscriminator(nn.Module):
 
         sequence += [nn.Conv2d(ndf * nf_multi, 1, kernel_size=kw, stride=1, padding=padw)]
         self.conv_layers = nn.Sequential(*sequence)
+        self.last = nn.Linear(36, 1)
 
 
     def forward(self, input):
-        conv_out = self.conv_layers(input)
-        flat_conv_out = conv_out.view(-1, num_flat_features(conv_out))
-        out_fc_layer = nn.Sigmoid()(nn.Linear(num_flat_features(conv_out), 1)(flat_conv_out))
+        out = self.conv_layers(input)
+        # num_f = num_flat_features(out)
+        out = out.view(-1, 36)
+        out = self.last(out)
 
-        return out_fc_layer
+        return out
 
 '''
 discriminator = NLayerDiscriminator(3, n_layers=5)
+discriminator.to("cuda:0")
+fake_images = fake_images.to("cuda:0")
 out = discriminator(fake_images)
 print(out.shape)
 '''
