@@ -2,6 +2,7 @@
 
 import random
 import time
+import os
 import numpy as np
 from matplotlib import pyplot as plt
 from skimage import io as skio
@@ -24,7 +25,7 @@ D_for_horse = NLayerDiscriminator(input_nc=3, n_layers=5)
 D_for_zebra = NLayerDiscriminator(input_nc=3, n_layers=5)
 
 def train_model(G_horse2zebra, G_zebra2horse, D_for_horse, D_for_zebra, dataloader_horse, dataloader_zebra, num_epochs,
-                train_horse_img_list, lambda_for_cycLoss=0.5):
+                train_horse_img_list, lambda_for_cycLoss=0.5, save_freq=100):
 
     # GPUが使えるか確認
     device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
@@ -83,7 +84,6 @@ def train_model(G_horse2zebra, G_zebra2horse, D_for_horse, D_for_zebra, dataload
         print('(train)')
 
         # データローダーからminibatchずつ取り出すループ
-        iter_num = 1
         for horse_imgs, zebra_imgs in zip(dataloader_horse, dataloader_zebra):
 
             # ----------
@@ -174,9 +174,8 @@ def train_model(G_horse2zebra, G_zebra2horse, D_for_horse, D_for_zebra, dataload
 
             # ----------
             # 3. 記録（メモリの都合からいろいろ手を加えている途中）
-            # ----------
-            iteration += 1
-
+            # ---------
+            '''
             print('have looked : ', iter_num * batch_size)
             sample_fake_zebra_img = torchvision.utils.make_grid(fake_zebra_images.cpu()[0].unsqueeze(0))
             sample_horse_img = torchvision.utils.make_grid(horse_imgs.cpu()[0].unsqueeze(0))
@@ -186,9 +185,26 @@ def train_model(G_horse2zebra, G_zebra2horse, D_for_horse, D_for_zebra, dataload
             img_transformed = np.transpose(sample_fake_zebra_img.detach().numpy(), (1, 2, 0))
             plt.imshow(img_transformed)
             plt.pause(.01)
+            '''
 
-            iter_num += 1
-
+            if (iteration - 1) % save_freq == 0:
+                torch.save(G_horse2zebra.state_dict(),
+                           './models/G_horse2zebra.pth')
+                torch.save(G_zebra2horse.state_dict(),
+                           './models/G_zebra2horse.pth')
+                torch.save(D_for_horse.state_dict(),
+                           './models/D_horse.pth')
+                torch.save(D_for_zebra.state_dict(),
+                           './models/D_zebra.pth')
+                input_horse_for_save = np.clip(horse_imgs[0].cpu().numpy().transpose((1, 2, 0)), 0.0, 1.0)
+                input_zebra_for_save = np.clip(zebra_imgs[0].cpu().numpy().transpose((1, 2, 0)), 0.0, 1.0)
+                output_horse_for_save = np.clip(fake_horse_images.cpu()[0].detach().numpy().transpose((1, 2, 0)), 0.0, 1.0)
+                output_zebra_for_save = np.clip(fake_zebra_images.cpu()[0].detach().numpy().transpose((1, 2, 0)), 0.0, 1.0)
+                plt.imsave('./save_img/in_horse_{}.jpg'.format(iteration - 1), input_horse_for_save)
+                plt.imsave('./save_img/in_zebra_{}.jpg'.format(iteration - 1), input_zebra_for_save)
+                plt.imsave('./save_img/out_horse_{}.jpg'.format(iteration - 1), output_horse_for_save)
+                plt.imsave('./save_img/out_zebra_{}.jpg'.format(iteration - 1), output_zebra_for_save)
+            iteration += 1
 
 
         t_epoch_finish = time.time()
@@ -205,12 +221,14 @@ def train_model(G_horse2zebra, G_zebra2horse, D_for_horse, D_for_zebra, dataload
 
     return G_zebra2horse, G_horse2zebra, D_for_horse, D_for_zebra
 
-num_epoch = 200
+num_epoch = 1000
 train_horse_img_list, train_zebra_img_list = make_horse2zebra_datapath_list()
 train_horse_img_list = train_horse_img_list[0:1064]
 train_zebra_img_list = train_zebra_img_list[0:1064]
 mean = (0.5,)
 std = (0.5,)
+os.makedirs('./save_img', exist_ok=True)
+os.makedirs('./models', exist_ok=True)
 train_horse_dataset = GAN_Img_Dataset(file_list=train_horse_img_list, transform=ImageTransform(mean, std))
 train_zebra_dataset = GAN_Img_Dataset(file_list=train_zebra_img_list, transform=ImageTransform(mean, std))
 batch_size = 8
@@ -218,4 +236,4 @@ train_horse_dataloader = torch.utils.data.DataLoader(train_horse_dataset, batch_
 train_zebra_dataloader = torch.utils.data.DataLoader(train_zebra_dataset, batch_size=batch_size, shuffle=True)
 G_A, G_B, D_A, D_B = train_model(G_horse2zebra, G_zebra2horse, D_for_horse, D_for_zebra,
                                  train_horse_dataloader, train_zebra_dataloader, num_epoch,
-                                 train_horse_img_list, lambda_for_cycLoss=0.5)
+                                 train_horse_img_list, lambda_for_cycLoss=10)
